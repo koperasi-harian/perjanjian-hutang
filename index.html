@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Surat Perjanjian Tempoan Resmi</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+    margin:0; padding:0;
+  }
+  .container {
+    max-width: 900px;
+    margin: 30px auto;
+    background-color: #fff;
+    padding: 25px 30px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  h2 { text-align:center; margin-bottom:25px; color:#343a40; }
+  label { display:block; margin-top:15px; font-weight:600; color:#495057; }
+  input, textarea {
+    width:100%;
+    padding:10px;
+    margin-top:5px;
+    border:1px solid #ced4da;
+    border-radius:5px;
+    font-size:14px;
+  }
+  textarea { height:100px; resize:none; }
+  .ttd-container { display:flex; justify-content:space-between; margin-top:20px; }
+  .ttd-box {
+    border:2px dashed #6c757d;
+    width:45%;
+    height:160px;
+    position:relative;
+    border-radius:5px;
+    background-color:#e9ecef;
+  }
+  canvas { width:100%; height:100%; border-radius:5px; }
+  button {
+    margin-top:25px;
+    width:100%;
+    padding:15px;
+    background-color:#007bff;
+    color:#fff;
+    font-size:16px;
+    font-weight:600;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    transition:0.3s;
+  }
+  button:hover { background-color:#0056b3; }
+</style>
+</head>
+<body>
+
+<div class="container">
+<h2>Form Surat Perjanjian Tempoan</h2>
+
+<label>Nama Perusahaan</label>
+<input id="perusahaan">
+
+<label>Nama Peminjam</label>
+<input id="peminjam">
+
+<label>Nama Pemberi Pinjaman</label>
+<input id="pemberi">
+
+<label>Jumlah Pinjaman</label>
+<input id="jumlah" type="number">
+
+<label>Persentase Bunga (%)</label>
+<input id="bunga" type="number">
+
+<label>Tanggal Pinjam</label>
+<input id="tglPinjam" type="date">
+
+<label>Tanggal Jatuh Tempo</label>
+<input id="tglTempo" type="date">
+
+<label>Keterangan</label>
+<textarea id="keterangan"></textarea>
+
+<h3>Tanda Tangan (Coret-coretnya di dalam kotak)</h3>
+<div class="ttd-container">
+  <div class="ttd-box">
+    <canvas id="ttdPeminjam"></canvas>
+  </div>
+  <div class="ttd-box">
+    <canvas id="ttdPemberi"></canvas>
+  </div>
+</div>
+
+<button onclick="buatPDF()">Buat PDF Resmi</button>
+</div>
+
+<script>
+// Fungsi inisialisasi canvas tanda tangan dengan nama di background
+function initCanvas(id, nama){
+  const canvas = document.getElementById(id);
+  const ctx = canvas.getContext("2d");
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+  let drawing=false;
+
+  // Tulis nama di tengah canvas sebagai latar
+  ctx.font = "16px Arial";
+  ctx.fillStyle = "#6c757d"; // abu-abu tipis
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(nama, canvas.width/2, canvas.height/2);
+
+  // Desktop events
+  canvas.addEventListener("mousedown",()=>drawing=true);
+  canvas.addEventListener("mouseup",()=>{drawing=false;ctx.beginPath();});
+  canvas.addEventListener("mouseleave",()=>drawing=false);
+  canvas.addEventListener("mousemove",e=>{
+    if(!drawing) return;
+    const rect=canvas.getBoundingClientRect();
+    ctx.lineWidth=2; ctx.lineCap="round"; ctx.strokeStyle="#000";
+    ctx.lineTo(e.clientX-rect.left,e.clientY-rect.top);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(e.clientX-rect.left,e.clientY-rect.top);
+  });
+
+  // Mobile events
+  canvas.addEventListener("touchstart",e=>{
+    e.preventDefault();
+    drawing=true;
+    const rect=canvas.getBoundingClientRect();
+    const touch=e.touches[0];
+    ctx.beginPath();
+    ctx.moveTo(touch.clientX-rect.left,touch.clientY-rect.top);
+  });
+  canvas.addEventListener("touchmove",e=>{
+    e.preventDefault();
+    if(!drawing) return;
+    const rect=canvas.getBoundingClientRect();
+    const touch=e.touches[0];
+    ctx.lineWidth=2; ctx.lineCap="round"; ctx.strokeStyle="#000";
+    ctx.lineTo(touch.clientX-rect.left,touch.clientY-rect.top);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(touch.clientX-rect.left,touch.clientY-rect.top);
+  });
+  canvas.addEventListener("touchend",e=>{drawing=false; ctx.beginPath();});
+
+  return canvas;
+}
+
+// Ambil nama dari input saat halaman siap
+function updateCanvasNames(){
+  const peminjamNama = document.getElementById("peminjam").value || "Peminjam";
+  const pemberiNama = document.getElementById("pemberi").value || "Pemberi Pinjaman";
+  return [peminjamNama, pemberiNama];
+}
+
+// Inisialisasi canvas dengan nama sementara
+let [peminjamNama, pemberiNama] = updateCanvasNames();
+let canvasPeminjam = initCanvas("ttdPeminjam", peminjamNama);
+let canvasPemberi = initCanvas("ttdPemberi", pemberiNama);
+
+// Update nama di canvas saat user mengetik
+document.getElementById("peminjam").addEventListener("input",()=>{
+  peminjamNama = document.getElementById("peminjam").value || "Peminjam";
+  canvasPeminjam = initCanvas("ttdPeminjam", peminjamNama);
+});
+document.getElementById("pemberi").addEventListener("input",()=>{
+  pemberiNama = document.getElementById("pemberi").value || "Pemberi Pinjaman";
+  canvasPemberi = initCanvas("ttdPemberi", pemberiNama);
+});
+
+// Fungsi buat PDF
+async function buatPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  const perusahaan=document.getElementById("perusahaan").value;
+  const peminjam=document.getElementById("peminjam").value;
+  const pemberi=document.getElementById("pemberi").value;
+  const jumlah=parseFloat(document.getElementById("jumlah").value);
+  const bunga=parseFloat(document.getElementById("bunga").value);
+  const tglPinjam=document.getElementById("tglPinjam").value;
+  const tglTempo=document.getElementById("tglTempo").value;
+  const keterangan=document.getElementById("keterangan").value;
+  const totalBayar = jumlah + (jumlah*bunga/100);
+
+  // HEADER
+  doc.setFontSize(12); doc.setFont("helvetica","bold");
+  doc.text(perusahaan.toUpperCase(),105,15,{align:"center"});
+  doc.setFont("helvetica","normal"); doc.setFontSize(10);
+  const headerLines=[
+    "Badan Hukum No.02/BH/DISKUKM/I/2004, tanggal 02 Januari 2004",
+    "Ciheulang Tonggoh - Cibadak",
+    "UPSP PARUNG KUDA",
+    "Desa Babakan Pendeuy Parungkuda",
+    "Telp. (0266) 532673"
+  ];
+  headerLines.forEach((line,i)=>doc.text(line,105,22+i*5,{align:"center"}));
+  doc.setLineWidth(0.5); doc.line(10,50,200,50);
+
+  // JUDUL SURAT
+  doc.setFontSize(14); doc.setFont("helvetica","bold");
+  doc.text("SURAT PERJANJIAN PINJAMAN",105,60,{align:"center"});
+
+  // ISI SURAT
+  doc.setFontSize(12); doc.setFont("helvetica","normal");
+  let isi=`Pada hari ini, dibuat dan disepakati perjanjian antara:\n\n`+
+  `Nama Perusahaan : ${perusahaan}\n`+
+  `Nama Peminjam : ${peminjam}\n`+
+  `Nama Pemberi Pinjaman : ${pemberi}\n\n`+
+  `Pihak Pemberi Pinjaman memberikan pinjaman kepada pihak Peminjam sebesar Rp ${jumlah.toLocaleString()} dengan ketentuan bahwa pihak Peminjam wajib mengembalikan pinjaman tersebut beserta bunga yang disepakati sehingga total yang harus dibayarkan adalah Rp ${totalBayar.toLocaleString()}.\n\n`+
+  `Tanggal Pinjam : ${tglPinjam}\nTanggal Jatuh Tempo : ${tglTempo}\n\n`+
+  `Keterangan :\n${keterangan}\n\n`+
+  `Demikian surat perjanjian ini dibuat untuk dipergunakan sebagaimana mestinya dan mengikat kedua belah pihak.`;
+
+  const textLines=doc.splitTextToSize(isi,180);
+  doc.text(textLines,15,75);
+
+  // KOLOM TANDA TANGAN
+  const ttdY=250, kolom1X=20, kolom2X=120, boxWidth=60, boxHeight=30;
+  doc.setFontSize(11);
+  doc.text("Peminjam", kolom1X+boxWidth/2, ttdY-45,{align:"center"});
+  doc.text("Pemberi Pinjaman", kolom2X+boxWidth/2, ttdY-45,{align:"center"});
+  doc.setDrawColor(0);
+  doc.rect(kolom1X, ttdY-40, boxWidth, boxHeight);
+  doc.rect(kolom2X, ttdY-40, boxWidth, boxHeight);
+
+  const imgPeminjam=canvasPeminjam.toDataURL("image/png");
+  const imgPemberi=canvasPemberi.toDataURL("image/png");
+  doc.addImage(imgPeminjam,"PNG",kolom1X,ttdY-40,boxWidth,boxHeight);
+  doc.addImage(imgPemberi,"PNG",kolom2X,ttdY-40,boxWidth,boxHeight);
+
+  doc.text(peminjam, kolom1X+boxWidth/2, ttdY+10,{align:"center"});
+  doc.text(pemberi, kolom2X+boxWidth/2, ttdY+10,{align:"center"});
+
+  doc.save("Surat_Perjanjian_Resmi.pdf");
+}
+</script>
+</body>
+</html>
